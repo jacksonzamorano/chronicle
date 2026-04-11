@@ -39,6 +39,14 @@ pub const InputMonitor = struct {
                 //     .ctrl_key = ctrl(read_buf[0]),
                 // },
                 ctrl('C') => std.process.exit(0),
+                '\r', '\n' => {
+                    monitor.buf[cTail] = .{ .newline = {} };
+                    monitor.tail.store(next, .release);
+                },
+                0x7f, ctrl('H') => {
+                    monitor.buf[cTail] = .{ .backspace = {} };
+                    monitor.tail.store(next, .release);
+                },
                 else => {
                     monitor.buf[cTail] = .{ .key = read_buf[0] };
                     monitor.tail.store(next, .release);
@@ -76,4 +84,6 @@ fn ctrl(comptime c: u8) u8 {
 pub const InputEvent = union(enum) {
     key: u8,
     ctrl_key: u8,
+    newline,
+    backspace,
 };

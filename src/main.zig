@@ -10,16 +10,12 @@ pub fn main() !void {
     var task = state.createIndeterminate("Checking permissions...") catch unreachable;
     task.sub("Logging in...");
 
-    var text = try state.createText("Hello, world!");
-    text.changeText("Hello, world!");
-    text.changeStyle(.bold);
-
-    const input = try state.createInput("Enter a value: ");
+    const input = try state.createInput("Enter a value");
     state.focusInput(input);
 
     const returnValue = input.join();
-    var text2 = try state.createText(returnValue);
-    text2.changeStyle(.bold);
+    var text = try state.createText(returnValue);
+    text.changeStyle(.bold);
 
     std.Thread.sleep(3 * std.time.ns_per_s);
 

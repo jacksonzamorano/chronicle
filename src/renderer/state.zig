@@ -51,7 +51,7 @@ pub const Application = struct {
         state.input.start() catch {};
         var inputBuf: [constants.INPUT_BUFFER_SIZE]InputEvent = undefined;
         var inputBufIdx: usize = 0;
-        while (!state.cleanup.load(.acquire)) {
+        while (!state.cleanup.load(.acquire)) : (inputBufIdx = 0) {
             const inputCount = state.input.read(&inputBuf);
             if (state.currentFocus) |focus| {
                 switch (focus) {
@@ -121,7 +121,8 @@ pub const Application = struct {
             .lock = &state.lock,
             .allocator = state.allocator,
             .prompt = prompt,
-            .value = .{},
+            .value = undefined,
+            .temporaryValue = .{},
             .validation = null,
             .completed = .{},
         };
