@@ -9,12 +9,13 @@ pub const Pass = struct {
         };
     }
 
-    pub fn write(pass: *Pass, bytes: []const u8) !usize {
-        return pass.output.appendSlice(bytes);
+    pub fn startLine(pass: *Pass) !void {
+        pass.write("\n|\n");
+        try pass.write("\n");
+        pass.lineCount += 2;
     }
 
-    pub fn endLine(pass: *Pass) !void {
-        try pass.write("\n");
-        pass.lineCount += 1;
+    pub fn write(pass: *Pass, bytes: []const u8) !usize {
+        return pass.output.appendSlice(bytes);
     }
 };

@@ -1,9 +1,14 @@
-pub const State = @import("renderer/state.zig").State;
-pub const StateLine = @import("renderer/state.zig").StateLine;
-pub const InProgress = @import("renderer/state.zig").InProgress;
-pub const InProgressType = @import("renderer/state.zig").InProgressType;
-pub const Input = @import("renderer/state.zig").Input;
-pub const Text = @import("renderer/state.zig").Text;
-pub const TextStyle = @import("renderer/state.zig").TextStyle;
+const Pass = @import("renderer/pass.zig").Pass;
 
-pub const Pass = @import("renderer/pass.zig").Pass;
+pub const State = @import("renderer/state.zig").State;
+
+pub const TextStyle = @import("renderer/lines/text.zig").TextStyle;
+pub const Text = @import("renderer/lines/text.zig").Text;
+
+pub const Input = @import("renderer/lines/input.zig").Input;
+
+pub const InProgressStatus = @import("renderer/lines/in_progress.zig").InProgressStatus;
+pub const InProgressType = @import("renderer/lines/in_progress.zig").InProgressType;
+pub const InProgress = @import("renderer/lines/in_progress.zig").InProgress;
+
+pub const StateLine = @import("renderer/lines.zig").StateLine;
