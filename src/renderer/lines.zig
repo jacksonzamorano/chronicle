@@ -10,7 +10,7 @@ pub const InProgressType = @import("lines/in_progress.zig").InProgressType;
 pub const InProgress = @import("lines/in_progress.zig").InProgress;
 
 pub const StateLine = union(enum) {
-    in_progress: InProgress,
-    input: Input,
-    text: Text,
+    in_progress: *InProgress,
+    input: *Input,
+    text: *Text,
 };
