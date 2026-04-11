@@ -7,7 +7,15 @@ pub fn main() void {
     state.start();
     defer state.stop();
 
+    state.addKeybind('P', struct {
+        fn action(s: *progressive.Application) void {
+            const text = s.createText("Pressed p!");
+            _ = text;
+        }
+    }.action);
+
     var task = state.createIndeterminate("Asking questions...");
+    task.setSpinner(.dots);
     task.sub("Waiting for response...");
 
     const input = state.createInput("Enter a value");

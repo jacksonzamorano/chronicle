@@ -1,13 +1,19 @@
+const Keybind = struct {
+    key: u8,
+    action: *const fn (*Application) void,
+};
 pub const Application = struct {
     lines: std.ArrayList(StateLine),
     currentFocus: ?StateLine = undefined,
+    keybinds: std.ArrayList(Keybind),
     pass: Pass,
     input: InputMonitor,
 
     lock: std.Thread.Mutex,
     allocator: std.mem.Allocator,
 
-    tick_time: u64 = 60,
+    tick_time: u64 = 16,
+    default_indeterminate: InProgressSpinner = .dots,
     debug: bool = false,
 
     cleanup: std.atomic.Value(bool),
@@ -19,6 +25,7 @@ pub const Application = struct {
         return .{
             .lines = .{},
             .pass = Pass.init(allocator),
+            .keybinds = .{},
             .lock = .{},
             .allocator = allocator,
             .cleanup = std.atomic.Value(bool).init(false),
@@ -50,11 +57,28 @@ pub const Application = struct {
         var inputBufIdx: usize = 0;
         while (!state.cleanup.load(.acquire)) : (inputBufIdx = 0) {
             const inputCount = state.input.read(&inputBuf);
-            if (state.currentFocus) |focus| {
-                switch (focus) {
-                    inline else => |f| {
-                        if (@hasDecl(@TypeOf(f.*), "onInput")) {
-                            while (inputBufIdx < inputCount) {
+            input_loop: while (inputBufIdx < inputCount) {
+                const input = inputBuf[inputBufIdx];
+                switch (input) {
+                    .ctrl_key => |c| {
+                        for (state.keybinds.items) |keybind| {
+                            if (keybind.key == c) {
+                                keybind.action(state);
+                                inputBufIdx += 1;
+                                continue :input_loop;
+                            }
+                        }
+                        if (c == 'C') {
+                            std.process.exit(0);
+                        }
+                    },
+                    else => {},
+                }
+
+                if (state.currentFocus) |focus| {
+                    switch (focus) {
+                        inline else => |f| {
+                            if (@hasDecl(@TypeOf(f.*), "onInput")) {
                                 const done = f.onInput(inputBuf[inputBufIdx]);
                                 if (done) {
                                     state.currentFocus = null;
@@ -62,8 +86,8 @@ pub const Application = struct {
                                 }
                                 inputBufIdx += 1;
                             }
-                        }
-                    },
+                        },
+                    }
                 }
             }
             state.lock.lock();
@@ -93,7 +117,7 @@ pub const Application = struct {
             .title = title,
             .subtitle = null,
             .status = .in_progress,
-            .type = .indeterminate,
+            .type = .{ .indeterminate = state.default_indeterminate },
             .max = 0,
             .value = 0,
         };
@@ -159,6 +183,10 @@ pub const Application = struct {
         state.cleanup.store(true, .release);
         if (state.thread) |t| t.join();
     }
+
+    pub fn addKeybind(state: *Application, key: u8, action: *const fn (*Application) void) void {
+        state.keybinds.append(state.allocator, .{ .key = key, .action = action }) catch unreachable;
+    }
 };
 
 const std = @import("std");
@@ -167,6 +195,7 @@ const posix = std.posix;
 const Pass = @import("pass.zig").Pass;
 const StateLine = @import("state_line.zig").StateLine;
 const InProgress = @import("in_progress.zig").InProgress;
+const InProgressSpinner = @import("in_progress.zig").InProgressSpinner;
 const Text = @import("text.zig").Text;
 const Input = @import("input.zig").Input;
 const InputMonitor = @import("input_monitor.zig").InputMonitor;

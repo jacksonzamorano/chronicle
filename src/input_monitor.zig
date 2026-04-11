@@ -32,20 +32,9 @@ pub const InputMonitor = struct {
                 continue;
             }
 
-            switch (read_buf[0]) {
-                ctrl('C') => std.process.exit(0),
-                '\r', '\n' => {
-                    monitor.buf[cTail] = .{ .newline = {} };
-                    monitor.tail.store(next, .release);
-                },
-                0x7f, ctrl('H') => {
-                    monitor.buf[cTail] = .{ .backspace = {} };
-                    monitor.tail.store(next, .release);
-                },
-                else => {
-                    monitor.buf[cTail] = .{ .key = read_buf[0] };
-                    monitor.tail.store(next, .release);
-                },
+            if (parseInput(read_buf[0])) |ev| {
+                monitor.buf[cTail] = ev;
+                monitor.tail.store(next, .release);
             }
         }
     }
@@ -76,9 +65,49 @@ fn ctrl(comptime c: u8) u8 {
     return c & 0x1F;
 }
 
+fn parseInput(byte: u8) ?InputEvent {
+    return switch (byte) {
+        '\r', '\n' => .{ .newline = {} },
+        0x7f, ctrl('H') => .{ .backspace = {} },
+        9 => .{ .tab = {} },
+        ctrl('L') => .{ .clear = {} },
+        ctrl('U') => .{ .kill_line = {} },
+        ctrl('W') => .{ .delete_word = {} },
+        1...7, // ctrl+A through ctrl+G
+        11, // ctrl+K
+        14...20, // ctrl+N through ctrl+T
+        22, // ctrl+V
+        24...26, // ctrl+X through ctrl+Z
+        => .{ .ctrl_key = byte + '@' },
+        '\x1b' => blk: {
+            var seq_buf: [2]u8 = undefined;
+            _ = posix.read(posix.STDIN_FILENO, &seq_buf) catch unreachable;
+            break :blk if (seq_buf[0] == '[')
+                switch (seq_buf[1]) {
+                    'A' => InputEvent{ .arrow_up = {} },
+                    'B' => InputEvent{ .arrow_down = {} },
+                    'C' => InputEvent{ .arrow_right = {} },
+                    'D' => InputEvent{ .arrow_left = {} },
+                    else => null,
+                }
+            else
+                null;
+        },
+        else => .{ .key = byte },
+    };
+}
+
 pub const InputEvent = union(enum) {
     key: u8,
     ctrl_key: u8,
     newline,
     backspace,
+    tab,
+    clear,
+    kill_line,
+    delete_word,
+    arrow_up,
+    arrow_down,
+    arrow_left,
+    arrow_right,
 };

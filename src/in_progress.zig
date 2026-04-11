@@ -8,14 +8,44 @@ pub const InProgressStatus = enum {
     failure,
 };
 
-pub const InProgressType = enum {
-    indeterminate,
+pub const InProgressType = union(enum) {
+    indeterminate: InProgressSpinner,
     determinate,
 };
 
-pub const InProgress = struct {
-    const SPINNER_CHARS = [_][]const u8{ "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
+pub const InProgressSpinner = enum {
+    dots,
+    breath,
+    pulse,
+    sparkle,
+    noise,
+    balloon,
+    wave,
+    grow,
+    ping,
+    arc,
+    matrix,
+    hourglass,
 
+    fn chars(spinner: InProgressSpinner) []const []const u8 {
+        return switch (spinner) {
+            .dots => &.{ "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
+            .breath => &.{ "·", "•", "◦", "○", "◦", "•" },
+            .pulse => &.{ "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂" },
+            .sparkle => &.{ "✦", "✧", "✶", "✷", "✸", "✺", "✹", "✸", "✷", "✶", "✧" },
+            .noise => &.{ "░", "▒", "▓", "█", "▓", "▒", "░" },
+            .balloon => &.{ ".", "o", "O", "@", "*", "O", "o" },
+            .wave => &.{ "▁", "▂", "▄", "▆", "█", "▆", "▄", "▂" },
+            .grow => &.{ "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█" },
+            .ping => &.{ "∙", "·", "○", "◎", "⊙", "◎", "○", "·" },
+            .arc => &.{ "◜", "◠", "◝", "◞", "◡", "◟" },
+            .matrix => &.{ "⡿", "⣟", "⣯", "⣷", "⣾", "⣽", "⣻", "⢿" },
+            .hourglass => &.{ "⧗", "⧗", "⧗", "⧖", "⧖", "⧖" },
+        };
+    }
+};
+
+pub const InProgress = struct {
     lock: *std.Thread.Mutex,
 
     title: []const u8,
@@ -25,6 +55,7 @@ pub const InProgress = struct {
     value: f32,
     max: f32,
     phase: usize = 0,
+    phase_speed: usize = 6, // Frames per phase
 
     pub fn complete(line: *InProgress, title: []const u8) void {
         line.lock.lock();
@@ -39,15 +70,21 @@ pub const InProgress = struct {
         line.subtitle = subtitle;
     }
 
+    pub fn setSpinner(line: *InProgress, spinner: InProgressSpinner) void {
+        line.lock.lock();
+        defer line.lock.unlock();
+        line.type = .{ .indeterminate = spinner };
+    }
+
     pub fn render(line: *InProgress, pass: *Pass) void {
         pass.startLine();
         switch (line.status) {
             .in_progress => {
                 switch (line.type) {
-                    .indeterminate => {
-                        pass.write(SPINNER_CHARS[line.phase]);
+                    .indeterminate => |spinner| {
+                        pass.write(spinner.chars()[line.phase / line.phase_speed]);
                         line.phase += 1;
-                        if (line.phase >= SPINNER_CHARS.len) {
+                        if (line.phase / line.phase_speed >= spinner.chars().len) {
                             line.phase = 0;
                         }
                     },
