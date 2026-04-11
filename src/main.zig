@@ -1,14 +1,14 @@
 const std = @import("std");
-const progressive = @import("progressive");
+const chronicle = @import("chronicle");
 
 pub fn main() void {
-    var state = progressive.Application.init(std.heap.page_allocator);
+    var state = chronicle.Application.init(std.heap.page_allocator);
     // state.debug = true;
     state.start();
     defer state.stop();
 
     state.addKeybind('P', struct {
-        fn action(s: *progressive.Application) void {
+        fn action(s: *chronicle.Application) void {
             const text = s.createText("Pressed p!");
             _ = text;
         }
