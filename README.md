@@ -9,7 +9,7 @@ Add Chronicle as a dependency in your `build.zig.zon`:
 ```zig
 .dependencies = .{
     .chronicle = .{
-        .url = "https://github.com/your-username/chronicle/archive/refs/tags/v0.1.0.tar.gz",
+        .url = "https://github.com/jacksonzamorano/chronicle/archive/refs/tags/v0.1.0.tar.gz",
         .hash = "...",
     },
 },
