@@ -16,7 +16,7 @@ pub const InProgressType = enum {
 pub const InProgress = struct {
     const SPINNER_CHARS = [_][]const u8{ "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
 
-    lock: std.Thread.Mutex,
+    lock: *std.Thread.Mutex,
 
     title: []const u8,
     subtitle: ?[]const u8,

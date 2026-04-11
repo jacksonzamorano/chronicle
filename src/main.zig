@@ -2,7 +2,7 @@ const std = @import("std");
 const progressive = @import("progressive");
 
 pub fn main() !void {
-    var state = progressive.renderer.State.init(std.heap.page_allocator);
+    var state = progressive.renderer.Application.init(std.heap.page_allocator);
     // state.debug = true;
     try state.start();
     defer state.stop();
@@ -13,6 +13,13 @@ pub fn main() !void {
     var text = try state.createText("Hello, world!");
     text.changeText("Hello, world!");
     text.changeStyle(.bold);
+
+    const input = try state.createInput("Enter a value: ");
+    state.focusInput(input);
+
+    const returnValue = input.join();
+    var text2 = try state.createText(returnValue);
+    text2.changeStyle(.bold);
 
     std.Thread.sleep(3 * std.time.ns_per_s);
 

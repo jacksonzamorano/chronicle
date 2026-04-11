@@ -4,7 +4,7 @@ const TextStyle = @import("../const.zig").TextStyle;
 const COLOR_RESET = @import("../const.zig").COLOR_RESET;
 
 pub const Text = struct {
-    lock: std.Thread.Mutex,
+    lock: *std.Thread.Mutex,
     text: []const u8,
     style: TextStyle,
 

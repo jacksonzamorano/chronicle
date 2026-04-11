@@ -1,5 +1,6 @@
 pub const Application = struct {
     lines: std.ArrayList(StateLine),
+    currentFocus: ?StateLine = undefined,
     pass: Pass,
     input: InputMonitor,
 
@@ -40,9 +41,34 @@ pub const Application = struct {
         }
     }
 
+    pub fn focusInput(state: *Application, input: *Input) void {
+        state.lock.lock();
+        defer state.lock.unlock();
+        state.currentFocus = .{ .input = input };
+    }
+
     fn loop(state: *Application) !void {
         state.input.start() catch {};
+        var inputBuf: [constants.INPUT_BUFFER_SIZE]InputEvent = undefined;
+        var inputBufIdx: usize = 0;
         while (!state.cleanup.load(.acquire)) {
+            const inputCount = state.input.read(&inputBuf);
+            if (state.currentFocus) |focus| {
+                switch (focus) {
+                    inline else => |f| {
+                        if (@hasDecl(@TypeOf(f.*), "onInput")) {
+                            while (inputBufIdx < inputCount) {
+                                const done = f.onInput(inputBuf[inputBufIdx]);
+                                if (done) {
+                                    state.currentFocus = null;
+                                    break;
+                                }
+                                inputBufIdx += 1;
+                            }
+                        }
+                    },
+                }
+            }
             state.lock.lock();
             const tick = std.time.nanoTimestamp();
             try state.renderAll();
@@ -66,7 +92,7 @@ pub const Application = struct {
     pub fn createIndeterminate(state: *Application, title: []const u8) !*InProgress {
         const loader = try state.allocator.create(InProgress);
         loader.* = .{
-            .lock = .{},
+            .lock = &state.lock,
             .title = title,
             .subtitle = null,
             .status = .in_progress,
@@ -81,12 +107,26 @@ pub const Application = struct {
     pub fn createText(state: *Application, t: []const u8) !*Text {
         const text = try state.allocator.create(Text);
         text.* = .{
-            .lock = .{},
+            .lock = &state.lock,
             .text = t,
             .style = .regular,
         };
         try state.addLine(.{ .text = text });
         return text;
+    }
+
+    pub fn createInput(state: *Application, prompt: []const u8) !*Input {
+        const input = try state.allocator.create(Input);
+        input.* = .{
+            .lock = &state.lock,
+            .allocator = state.allocator,
+            .prompt = prompt,
+            .value = .{},
+            .validation = null,
+            .completed = .{},
+        };
+        try state.addLine(.{ .input = input });
+        return input;
     }
 
     pub fn start(state: *Application) !void {
@@ -134,4 +174,7 @@ const Pass = @import("pass.zig").Pass;
 pub const StateLine = @import("lines.zig").StateLine;
 const InProgress = @import("lines/in_progress.zig").InProgress;
 const Text = @import("lines/text.zig").Text;
+const Input = @import("lines/input.zig").Input;
 const InputMonitor = @import("../input.zig").InputMonitor;
+const InputEvent = @import("../input.zig").InputEvent;
+const constants = @import("const.zig");
