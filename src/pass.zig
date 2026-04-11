@@ -1,11 +1,10 @@
 const std = @import("std");
-const constants = @import("const.zig");
+const constants = @import("ansi.zig");
+
 pub const Pass = struct {
     output: std.ArrayList(u8),
     allocator: std.mem.Allocator,
-    /// Lines printed in the last flush — used to move cursor up on the next frame.
     prevLines: usize = 0,
-    /// Lines accumulated in the current render pass.
     currentLines: usize = 0,
 
     pub fn init(allocator: std.mem.Allocator) Pass {

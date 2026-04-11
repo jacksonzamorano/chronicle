@@ -1,7 +1,7 @@
 const std = @import("std");
-const Pass = @import("../pass.zig").Pass;
-const TextStyle = @import("../const.zig").TextStyle;
-const COLOR_RESET = @import("../const.zig").COLOR_RESET;
+const Pass = @import("pass.zig").Pass;
+const TextStyle = @import("ansi.zig").TextStyle;
+const COLOR_RESET = @import("ansi.zig").COLOR_RESET;
 
 pub const Text = struct {
     lock: *std.Thread.Mutex,

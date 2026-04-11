@@ -1,7 +1,7 @@
-const Pass = @import("../pass.zig").Pass;
-const State = @import("../state.zig").Application;
 const std = @import("std");
-const constants = @import("../const.zig");
+const Pass = @import("pass.zig").Pass;
+const constants = @import("ansi.zig");
+
 pub const InProgressStatus = enum {
     in_progress,
     success,

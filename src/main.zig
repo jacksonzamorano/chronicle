@@ -2,7 +2,7 @@ const std = @import("std");
 const progressive = @import("progressive");
 
 pub fn main() !void {
-    var state = progressive.renderer.Application.init(std.heap.page_allocator);
+    var state = progressive.Application.init(std.heap.page_allocator);
     // state.debug = true;
     try state.start();
     defer state.stop();
@@ -31,4 +31,3 @@ pub fn main() !void {
     std.Thread.sleep(std.time.ns_per_s);
     task2.complete("Ready to merge!");
 }
-

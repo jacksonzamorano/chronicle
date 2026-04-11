@@ -4,15 +4,12 @@ pub const Application = struct {
     pass: Pass,
     input: InputMonitor,
 
-    // Memory & thread safety
     lock: std.Thread.Mutex,
     allocator: std.mem.Allocator,
 
-    // Configuration
     tick_time: u64 = 60,
     debug: bool = false,
 
-    // Lifecycle
     cleanup: std.atomic.Value(bool),
     thread: ?std.Thread = null,
     og_mode: ?posix.termios = null,
@@ -134,23 +131,19 @@ pub const Application = struct {
         const original = try posix.tcgetattr(posix.STDIN_FILENO);
         var raw = original;
 
-        // Input flags
         raw.iflag.BRKINT = false;
         raw.iflag.ICRNL = false;
         raw.iflag.INPCK = false;
         raw.iflag.ISTRIP = false;
         raw.iflag.IXON = false;
 
-        // Control flags
         raw.cflag.CSIZE = .CS8;
 
-        // Local flags
         raw.lflag.ECHO = false;
         raw.lflag.ICANON = false;
         raw.lflag.IEXTEN = false;
         raw.lflag.ISIG = false;
 
-        // Read settings: return after 1 byte, no timeout
         raw.cc[@intFromEnum(posix.V.MIN)] = 1;
         raw.cc[@intFromEnum(posix.V.TIME)] = 0;
 
@@ -172,10 +165,10 @@ const std = @import("std");
 const posix = std.posix;
 
 const Pass = @import("pass.zig").Pass;
-pub const StateLine = @import("lines.zig").StateLine;
-const InProgress = @import("lines/in_progress.zig").InProgress;
-const Text = @import("lines/text.zig").Text;
-const Input = @import("lines/input.zig").Input;
-const InputMonitor = @import("../input.zig").InputMonitor;
-const InputEvent = @import("../input.zig").InputEvent;
-const constants = @import("const.zig");
+const StateLine = @import("state_line.zig").StateLine;
+const InProgress = @import("in_progress.zig").InProgress;
+const Text = @import("text.zig").Text;
+const Input = @import("input.zig").Input;
+const InputMonitor = @import("input_monitor.zig").InputMonitor;
+const InputEvent = @import("input_monitor.zig").InputEvent;
+const constants = @import("ansi.zig");
