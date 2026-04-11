@@ -8,11 +8,11 @@ pub const Text = struct {
     text: []const u8,
     style: TextStyle,
 
-    pub fn render(text: Text, pass: *Pass) !void {
-        try pass.startLine();
-        try pass.write(TextStyle.toCode(text.style));
-        try pass.write(text.text);
-        try pass.write(COLOR_RESET);
+    pub fn render(text: Text, pass: *Pass) void {
+        pass.startLine();
+        pass.write(TextStyle.toCode(text.style));
+        pass.write(text.text);
+        pass.write(COLOR_RESET);
     }
 
     pub fn changeStyle(text: *Text, style: TextStyle) void {

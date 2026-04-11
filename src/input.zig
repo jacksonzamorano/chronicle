@@ -46,7 +46,7 @@ pub const Input = struct {
     }
 
     fn finalize(input: *Input) void {
-        input.value = input.temporaryValue.toOwnedSlice(input.allocator) catch &[_]u8{};
+        input.value = input.temporaryValue.toOwnedSlice(input.allocator) catch unreachable;
         input.done = true;
         input.completed.signal();
     }
@@ -65,41 +65,41 @@ pub const Input = struct {
                 }
             },
             .key => |c| {
-                input.temporaryValue.append(input.allocator, c) catch return false;
+                input.temporaryValue.append(input.allocator, c) catch unreachable;
             },
             else => {},
         }
         return false;
     }
 
-    fn writePrompt(input: *Input, pass: *Pass, prompt: []const u8, sep: bool) !void {
-        try pass.write(prompt);
+    fn writePrompt(input: *Input, pass: *Pass, prompt: []const u8, sep: bool) void {
+        pass.write(prompt);
         if (sep) {
-            try pass.write(input.seperator);
+            pass.write(input.seperator);
         }
     }
 
-    pub fn render(input: *Input, pass: *Pass) !void {
-        try pass.startLine();
+    pub fn render(input: *Input, pass: *Pass) void {
+        pass.startLine();
         if (input.done) {
             switch (input.finalizationBehavior) {
                 .keep => {
-                    try input.writePrompt(pass, input.prompt, true);
-                    try pass.write(input.value);
+                    input.writePrompt(pass, input.prompt, true);
+                    pass.write(input.value);
                 },
-                .prompt => try input.writePrompt(pass, input.prompt, false),
-                .value => try pass.write(input.value),
+                .prompt => input.writePrompt(pass, input.prompt, false),
+                .value => pass.write(input.value),
                 .newPrompt => |prompt| {
-                    try input.writePrompt(pass, prompt, false);
+                    input.writePrompt(pass, prompt, false);
                 },
                 .newPromptAndValue => |prompt| {
-                    try input.writePrompt(pass, prompt, true);
-                    try pass.write(input.value);
+                    input.writePrompt(pass, prompt, true);
+                    pass.write(input.value);
                 },
             }
         } else {
-            try input.writePrompt(pass, input.prompt, true);
-            try pass.write(input.temporaryValue.items);
+            input.writePrompt(pass, input.prompt, true);
+            pass.write(input.temporaryValue.items);
         }
     }
 };

@@ -17,10 +17,10 @@ pub const InputMonitor = struct {
         };
     }
 
-    fn loop(monitor: *InputMonitor) !void {
+    fn loop(monitor: *InputMonitor) void {
         var read_buf: [1]u8 = undefined;
         while (!monitor.cleanup.load(.acquire)) {
-            _ = try posix.read(posix.STDIN_FILENO, &read_buf);
+            _ = posix.read(posix.STDIN_FILENO, &read_buf) catch unreachable;
             monitor.mutex.lock();
             defer monitor.mutex.unlock();
 
@@ -67,8 +67,8 @@ pub const InputMonitor = struct {
         return idx;
     }
 
-    pub fn start(monitor: *InputMonitor) !void {
-        monitor.thread = try std.Thread.spawn(.{}, loop, .{monitor});
+    pub fn start(monitor: *InputMonitor) void {
+        monitor.thread = std.Thread.spawn(.{}, loop, .{monitor}) catch unreachable;
     }
 };
 

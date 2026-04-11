@@ -26,12 +26,12 @@ pub const Application = struct {
         };
     }
 
-    fn renderAll(state: *Application) !void {
+    fn renderAll(state: *Application) void {
         for (state.lines.items) |line| {
             switch (line) {
                 inline else => |l| {
                     if (@hasDecl(@TypeOf(l.*), "render")) {
-                        try l.render(&state.pass);
+                        l.render(&state.pass);
                     }
                 },
             }
@@ -44,8 +44,8 @@ pub const Application = struct {
         state.currentFocus = .{ .input = input };
     }
 
-    fn loop(state: *Application) !void {
-        state.input.start() catch {};
+    fn loop(state: *Application) void {
+        state.input.start();
         var inputBuf: [constants.INPUT_BUFFER_SIZE]InputEvent = undefined;
         var inputBufIdx: usize = 0;
         while (!state.cleanup.load(.acquire)) : (inputBufIdx = 0) {
@@ -68,26 +68,26 @@ pub const Application = struct {
             }
             state.lock.lock();
             const tick = std.time.nanoTimestamp();
-            try state.renderAll();
-            try state.pass.flush(if (state.debug) tick else 0);
+            state.renderAll();
+            state.pass.flush(if (state.debug) tick else 0);
             state.lock.unlock();
             std.Thread.sleep(state.tick_time * std.time.ns_per_ms);
         }
 
-        try state.renderAll();
-        try state.pass.flush(0);
+        state.renderAll();
+        state.pass.flush(0);
         const stdout = std.fs.File.stdout();
-        try stdout.writeAll("\n");
+        stdout.writeAll("\n") catch unreachable;
     }
 
-    fn addLine(state: *Application, line: StateLine) !void {
+    fn addLine(state: *Application, line: StateLine) void {
         state.lock.lock();
         defer state.lock.unlock();
-        try state.lines.append(state.allocator, line);
+        state.lines.append(state.allocator, line) catch unreachable;
     }
 
-    pub fn createIndeterminate(state: *Application, title: []const u8) !*InProgress {
-        const loader = try state.allocator.create(InProgress);
+    pub fn createIndeterminate(state: *Application, title: []const u8) *InProgress {
+        const loader = state.allocator.create(InProgress) catch unreachable;
         loader.* = .{
             .lock = &state.lock,
             .title = title,
@@ -97,23 +97,23 @@ pub const Application = struct {
             .max = 0,
             .value = 0,
         };
-        try state.addLine(.{ .in_progress = loader });
+        state.addLine(.{ .in_progress = loader });
         return loader;
     }
 
-    pub fn createText(state: *Application, t: []const u8) !*Text {
-        const text = try state.allocator.create(Text);
+    pub fn createText(state: *Application, t: []const u8) *Text {
+        const text = state.allocator.create(Text) catch unreachable;
         text.* = .{
             .lock = &state.lock,
             .text = t,
             .style = .regular,
         };
-        try state.addLine(.{ .text = text });
+        state.addLine(.{ .text = text });
         return text;
     }
 
-    pub fn createInput(state: *Application, prompt: []const u8) !*Input {
-        const input = try state.allocator.create(Input);
+    pub fn createInput(state: *Application, prompt: []const u8) *Input {
+        const input = state.allocator.create(Input) catch unreachable;
         input.* = .{
             .lock = &state.lock,
             .allocator = state.allocator,
@@ -123,12 +123,12 @@ pub const Application = struct {
             .validation = null,
             .completed = .{},
         };
-        try state.addLine(.{ .input = input });
+        state.addLine(.{ .input = input });
         return input;
     }
 
-    pub fn start(state: *Application) !void {
-        const original = try posix.tcgetattr(posix.STDIN_FILENO);
+    pub fn start(state: *Application) void {
+        const original = posix.tcgetattr(posix.STDIN_FILENO) catch unreachable;
         var raw = original;
 
         raw.iflag.BRKINT = false;
@@ -147,14 +147,14 @@ pub const Application = struct {
         raw.cc[@intFromEnum(posix.V.MIN)] = 1;
         raw.cc[@intFromEnum(posix.V.TIME)] = 0;
 
-        try posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, raw);
-        state.thread = try std.Thread.spawn(.{}, loop, .{state});
+        posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, raw) catch unreachable;
+        state.thread = std.Thread.spawn(.{}, loop, .{state}) catch unreachable;
         state.og_mode = original;
     }
 
     pub fn stop(state: *Application) void {
         if (state.og_mode) |original| {
-            posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, original) catch {};
+            posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, original) catch unreachable;
         }
         state.cleanup.store(true, .release);
         if (state.thread) |t| t.join();

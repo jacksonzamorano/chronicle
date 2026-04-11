@@ -39,13 +39,13 @@ pub const InProgress = struct {
         line.subtitle = subtitle;
     }
 
-    pub fn render(line: *InProgress, pass: *Pass) !void {
-        try pass.startLine();
+    pub fn render(line: *InProgress, pass: *Pass) void {
+        pass.startLine();
         switch (line.status) {
             .in_progress => {
                 switch (line.type) {
                     .indeterminate => {
-                        try pass.write(SPINNER_CHARS[line.phase]);
+                        pass.write(SPINNER_CHARS[line.phase]);
                         line.phase += 1;
                         if (line.phase >= SPINNER_CHARS.len) {
                             line.phase = 0;
@@ -54,29 +54,29 @@ pub const InProgress = struct {
                     .determinate => {
                         var buf: [10]u8 = undefined;
                         const value = std.fmt.bufPrint(&buf, "{}%", .{line.value * 100 / line.max}) catch unreachable;
-                        try pass.write(value);
+                        pass.write(value);
                     },
                 }
             },
             .success => {
-                try pass.write(constants.COLOR_GREEN);
-                try pass.write("✔");
-                try pass.write(constants.COLOR_RESET);
+                pass.write(constants.COLOR_GREEN);
+                pass.write("✔");
+                pass.write(constants.COLOR_RESET);
             },
             .failure => {
-                try pass.write(constants.COLOR_RED);
-                try pass.write("✘");
-                try pass.write(constants.COLOR_RESET);
+                pass.write(constants.COLOR_RED);
+                pass.write("✘");
+                pass.write(constants.COLOR_RESET);
             },
         }
-        try pass.write(" ");
-        try pass.write(line.title);
+        pass.write(" ");
+        pass.write(line.title);
         if (line.status == .in_progress) {
             if (line.subtitle) |subtitle| {
-                try pass.subLine();
-                try pass.write(constants.COLOR_DIM);
-                try pass.write(subtitle);
-                try pass.write(constants.COLOR_RESET);
+                pass.subLine();
+                pass.write(constants.COLOR_DIM);
+                pass.write(subtitle);
+                pass.write(constants.COLOR_RESET);
             }
         }
     }
