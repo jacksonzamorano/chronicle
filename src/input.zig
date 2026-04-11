@@ -16,6 +16,7 @@ pub const Input = struct {
 
     prompt: []const u8,
     value: []const u8,
+    seperator: []const u8 = ": ",
 
     finalizationBehavior: InputFinalizationBehavior = .keep,
 
@@ -30,6 +31,18 @@ pub const Input = struct {
         const result = input.value;
         input.lock.unlock();
         return result;
+    }
+
+    pub fn setFinalizationBehavior(input: *Input, behavior: InputFinalizationBehavior) void {
+        input.lock.lock();
+        defer input.lock.unlock();
+        input.finalizationBehavior = behavior;
+    }
+
+    pub fn setSeperator(input: *Input, sep: []const u8) void {
+        input.lock.lock();
+        defer input.lock.unlock();
+        input.seperator = sep;
     }
 
     fn finalize(input: *Input) void {
@@ -59,13 +72,33 @@ pub const Input = struct {
         return false;
     }
 
+    fn writePrompt(input: *Input, pass: *Pass, prompt: []const u8, sep: bool) !void {
+        try pass.write(prompt);
+        if (sep) {
+            try pass.write(input.seperator);
+        }
+    }
+
     pub fn render(input: *Input, pass: *Pass) !void {
         try pass.startLine();
-        try pass.write(input.prompt);
-        try pass.write(": ");
         if (input.done) {
-            try pass.write(input.value);
+            switch (input.finalizationBehavior) {
+                .keep => {
+                    try input.writePrompt(pass, input.prompt, true);
+                    try pass.write(input.value);
+                },
+                .prompt => try input.writePrompt(pass, input.prompt, false),
+                .value => try pass.write(input.value),
+                .newPrompt => |prompt| {
+                    try input.writePrompt(pass, prompt, false);
+                },
+                .newPromptAndValue => |prompt| {
+                    try input.writePrompt(pass, prompt, true);
+                    try pass.write(input.value);
+                },
+            }
         } else {
+            try input.writePrompt(pass, input.prompt, true);
             try pass.write(input.temporaryValue.items);
         }
     }

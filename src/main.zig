@@ -11,6 +11,8 @@ pub fn main() !void {
     task.sub("Logging in...");
 
     const input = try state.createInput("Enter a value");
+    input.setFinalizationBehavior(.{ .newPrompt = "Value saved" });
+    input.setSeperator(" => ");
     state.focusInput(input);
 
     const returnValue = input.join();
