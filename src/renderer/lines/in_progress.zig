@@ -1,5 +1,5 @@
 const Pass = @import("../pass.zig").Pass;
-const State = @import("../state.zig").State;
+const State = @import("../state.zig").Application;
 const std = @import("std");
 const constants = @import("../const.zig");
 pub const InProgressStatus = enum {

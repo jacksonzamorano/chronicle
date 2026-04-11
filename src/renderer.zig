@@ -1,6 +1,6 @@
 const Pass = @import("renderer/pass.zig").Pass;
 
-pub const State = @import("renderer/state.zig").State;
+pub const Application = @import("renderer/state.zig").Application;
 
 pub const TextStyle = @import("renderer/lines/text.zig").TextStyle;
 pub const Text = @import("renderer/lines/text.zig").Text;

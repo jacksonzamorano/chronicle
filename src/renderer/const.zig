@@ -1,3 +1,5 @@
+pub const INPUT_BUFFER_SIZE = 256;
+
 pub const COLOR_GREEN = "\x1b[32m";
 pub const COLOR_RED = "\x1b[31m";
 pub const COLOR_DIM = "\x1b[2m";

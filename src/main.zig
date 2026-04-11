@@ -3,7 +3,7 @@ const progressive = @import("progressive");
 
 pub fn main() !void {
     var state = progressive.renderer.State.init(std.heap.page_allocator);
-    state.debug = true;
+    // state.debug = true;
     try state.start();
     defer state.stop();
 

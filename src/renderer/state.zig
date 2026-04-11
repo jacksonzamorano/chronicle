@@ -1,27 +1,34 @@
-pub const State = struct {
+pub const Application = struct {
     lines: std.ArrayList(StateLine),
     pass: Pass,
+    input: InputMonitor,
+
+    // Memory & thread safety
     lock: std.Thread.Mutex,
     allocator: std.mem.Allocator,
-    cleanup: std.atomic.Value(bool),
 
-    tick_time: i128 = 60,
-
+    // Configuration
+    tick_time: u64 = 60,
     debug: bool = false,
+
+    // Lifecycle
+    cleanup: std.atomic.Value(bool),
     thread: ?std.Thread = null,
     og_mode: ?posix.termios = null,
 
-    pub fn init(allocator: std.mem.Allocator) State {
+    pub fn init(allocator: std.mem.Allocator) Application {
+        const input = InputMonitor.init();
         return .{
             .lines = .{},
             .pass = Pass.init(allocator),
             .lock = .{},
             .allocator = allocator,
             .cleanup = std.atomic.Value(bool).init(false),
+            .input = input,
         };
     }
 
-    fn renderAll(state: *State) !void {
+    fn renderAll(state: *Application) !void {
         for (state.lines.items) |line| {
             switch (line) {
                 inline else => |l| {
@@ -33,7 +40,8 @@ pub const State = struct {
         }
     }
 
-    fn loop(state: *State) !void {
+    fn loop(state: *Application) !void {
+        state.input.start() catch {};
         while (!state.cleanup.load(.acquire)) {
             state.lock.lock();
             const tick = std.time.nanoTimestamp();
@@ -49,13 +57,13 @@ pub const State = struct {
         try stdout.writeAll("\n");
     }
 
-    fn addLine(state: *State, line: StateLine) !void {
+    fn addLine(state: *Application, line: StateLine) !void {
         state.lock.lock();
         defer state.lock.unlock();
         try state.lines.append(state.allocator, line);
     }
 
-    pub fn createIndeterminate(state: *State, title: []const u8) !*InProgress {
+    pub fn createIndeterminate(state: *Application, title: []const u8) !*InProgress {
         const loader = try state.allocator.create(InProgress);
         loader.* = .{
             .lock = .{},
@@ -70,7 +78,7 @@ pub const State = struct {
         return loader;
     }
 
-    pub fn createText(state: *State, t: []const u8) !*Text {
+    pub fn createText(state: *Application, t: []const u8) !*Text {
         const text = try state.allocator.create(Text);
         text.* = .{
             .lock = .{},
@@ -81,7 +89,7 @@ pub const State = struct {
         return text;
     }
 
-    pub fn start(state: *State) !void {
+    pub fn start(state: *Application) !void {
         const original = try posix.tcgetattr(posix.STDIN_FILENO);
         var raw = original;
 
@@ -110,7 +118,7 @@ pub const State = struct {
         state.og_mode = original;
     }
 
-    pub fn stop(state: *State) void {
+    pub fn stop(state: *Application) void {
         if (state.og_mode) |original| {
             posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, original) catch {};
         }
@@ -126,3 +134,4 @@ const Pass = @import("pass.zig").Pass;
 pub const StateLine = @import("lines.zig").StateLine;
 const InProgress = @import("lines/in_progress.zig").InProgress;
 const Text = @import("lines/text.zig").Text;
+const InputMonitor = @import("../input.zig").InputMonitor;
