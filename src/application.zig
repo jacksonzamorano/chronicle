@@ -7,7 +7,7 @@ pub const Application = struct {
     currentFocus: ?StateLine = undefined,
     keybinds: std.ArrayList(Keybind),
     pass: Pass,
-    input: Keyboard,
+    keyboard: Keyboard,
 
     lock: std.Io.Mutex,
     allocator: std.mem.Allocator,
@@ -26,7 +26,7 @@ pub const Application = struct {
             .keybinds = .empty,
             .lock = .init,
             .allocator = allocator,
-            .input = .init,
+            .keyboard = .init,
         };
     }
 
@@ -47,7 +47,7 @@ pub const Application = struct {
         var inputBufIdx: usize = 0;
         while (true) : (inputBufIdx = 0) {
             io.checkCancel() catch break;
-            const inputCount = state.input.read(io, &inputBuf);
+            const inputCount = state.keyboard.read(io, &inputBuf);
             input_loop: while (inputBufIdx < inputCount) {
                 const input = inputBuf[inputBufIdx];
                 switch (input) {
@@ -166,7 +166,7 @@ pub const Application = struct {
 
         posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, raw) catch unreachable;
 
-        state.input.start(io) catch unreachable;
+        state.keyboard.start(io);
         state.og_mode = original;
         if (io.concurrent(loop, .{ state, io })) |t| {
             state.task = t;
@@ -180,6 +180,7 @@ pub const Application = struct {
 
     pub fn stop(state: *Application, io: std.Io) void {
         if (state.task) |*t| t.cancel(io);
+        state.keyboard.stop(io);
     }
 
     pub fn addKeybind(state: *Application, key: u8, action: *const fn (*Application, std.Io) void) void {

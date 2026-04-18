@@ -9,13 +9,17 @@ pub const Keyboard = struct {
     head: std.atomic.Value(usize) = std.atomic.Value(usize).init(0),
     tail: std.atomic.Value(usize) = std.atomic.Value(usize).init(0),
 
+    task: ?std.Io.Future(void) = null,
+
     pub const init: Keyboard = .{};
 
     fn loop(monitor: *Keyboard, io: std.Io) void {
+        const stdin = std.Io.File.stdin();
         var read_buf: [1]u8 = undefined;
         while (true) {
             io.checkCancel() catch break;
-            _ = posix.read(posix.STDIN_FILENO, &read_buf) catch unreachable;
+            const n = stdin.readStreaming(io, &.{read_buf[0..]}) catch break;
+            if (n == 0) break;
             monitor.mutex.lock(io) catch unreachable;
             defer monitor.mutex.unlock(io);
 
@@ -51,8 +55,16 @@ pub const Keyboard = struct {
         return idx;
     }
 
-    pub fn start(monitor: *Keyboard, io: std.Io) !void {
-        _ = try io.concurrent(Keyboard.loop, .{ monitor, io });
+    pub fn start(monitor: *Keyboard, io: std.Io) void {
+        if (io.concurrent(Keyboard.loop, .{ monitor, io })) |t| {
+            monitor.task = t;
+        } else |_| {
+            @panic("Failed to start input monitor");
+        }
+    }
+
+    pub fn stop(monitor: *Keyboard, io: std.Io) void {
+        if (monitor.task) |*t| t.cancel(io);
     }
 };
 
