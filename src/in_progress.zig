@@ -46,7 +46,7 @@ pub const InProgressSpinner = enum {
 };
 
 pub const InProgress = struct {
-    lock: *std.Thread.Mutex,
+    lock: *std.Io.Mutex,
 
     title: []const u8,
     subtitle: ?[]const u8,
@@ -57,22 +57,22 @@ pub const InProgress = struct {
     phase: usize = 0,
     phase_speed: usize = 6, // Frames per phase
 
-    pub fn complete(line: *InProgress, title: []const u8) void {
-        line.lock.lock();
-        defer line.lock.unlock();
+    pub fn complete(line: *InProgress, io: std.Io, title: []const u8) void {
+        line.lock.lock(io) catch return;
+        defer line.lock.unlock(io);
         line.status = .success;
         line.title = title;
     }
 
-    pub fn sub(line: *InProgress, subtitle: []const u8) void {
-        line.lock.lock();
-        defer line.lock.unlock();
+    pub fn sub(line: *InProgress, io: std.Io, subtitle: []const u8) void {
+        line.lock.lock(io) catch return;
+        defer line.lock.unlock(io);
         line.subtitle = subtitle;
     }
 
-    pub fn setSpinner(line: *InProgress, spinner: InProgressSpinner) void {
-        line.lock.lock();
-        defer line.lock.unlock();
+    pub fn setSpinner(line: *InProgress, io: std.Io, spinner: InProgressSpinner) void {
+        line.lock.lock(io) catch return;
+        defer line.lock.unlock(io);
         line.type = .{ .indeterminate = spinner };
     }
 

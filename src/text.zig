@@ -4,7 +4,7 @@ const TextStyle = @import("ansi.zig").TextStyle;
 const COLOR_RESET = @import("ansi.zig").COLOR_RESET;
 
 pub const Text = struct {
-    lock: *std.Thread.Mutex,
+    lock: *std.Io.Mutex,
     text: []const u8,
     style: TextStyle,
 
@@ -15,15 +15,15 @@ pub const Text = struct {
         pass.write(COLOR_RESET);
     }
 
-    pub fn changeStyle(text: *Text, style: TextStyle) void {
-        text.lock.lock();
-        defer text.lock.unlock();
+    pub fn changeStyle(text: *Text, io: std.Io, style: TextStyle) void {
+        text.lock.lock(io) catch unreachable;
+        defer text.lock.unlock(io);
         text.style = style;
     }
 
-    pub fn changeText(text: *Text, t: []const u8) void {
-        text.lock.lock();
-        defer text.lock.unlock();
+    pub fn changeText(text: *Text, io: std.Io, t: []const u8) void {
+        text.lock.lock(io);
+        defer text.lock.unlock(io);
         text.text = t;
     }
 };

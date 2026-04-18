@@ -11,7 +11,7 @@ pub const InputFinalizationBehavior = union(enum) {
 };
 
 pub const Input = struct {
-    lock: *std.Thread.Mutex,
+    lock: *std.Io.Mutex,
     allocator: std.mem.Allocator,
 
     prompt: []const u8,
@@ -22,41 +22,41 @@ pub const Input = struct {
 
     temporaryValue: std.ArrayList(u8),
     validation: ?*const fn (value: []const u8) bool,
-    completed: std.Thread.Condition,
+    completed: std.Io.Condition,
     done: bool = false,
 
-    pub fn join(input: *Input) []const u8 {
-        input.lock.lock();
-        while (!input.done) input.completed.wait(input.lock);
+    pub fn join(input: *Input, io: std.Io) []const u8 {
+        input.lock.lock(io) catch unreachable;
+        while (!input.done) input.completed.wait(io, input.lock) catch return "";
         const result = input.value;
-        input.lock.unlock();
+        input.lock.unlock(io);
         return result;
     }
 
-    pub fn setFinalizationBehavior(input: *Input, behavior: InputFinalizationBehavior) void {
-        input.lock.lock();
-        defer input.lock.unlock();
+    pub fn setFinalizationBehavior(input: *Input, io: std.Io, behavior: InputFinalizationBehavior) void {
+        input.lock.lock(io) catch unreachable;
+        defer input.lock.unlock(io);
         input.finalizationBehavior = behavior;
     }
 
-    pub fn setSeperator(input: *Input, sep: []const u8) void {
-        input.lock.lock();
-        defer input.lock.unlock();
+    pub fn setSeperator(input: *Input, io: std.Io, sep: []const u8) void {
+        input.lock.lock(io) catch unreachable;
+        defer input.lock.unlock(io);
         input.seperator = sep;
     }
 
-    fn finalize(input: *Input) void {
+    fn finalize(input: *Input, io: std.Io) void {
         input.value = input.temporaryValue.toOwnedSlice(input.allocator) catch unreachable;
         input.done = true;
-        input.completed.signal();
+        input.completed.signal(io);
     }
 
-    pub fn onInput(input: *Input, char: InputEvent) bool {
-        input.lock.lock();
-        defer input.lock.unlock();
+    pub fn onInput(input: *Input, io: std.Io, char: InputEvent) bool {
+        input.lock.lock(io) catch unreachable;
+        defer input.lock.unlock(io);
         switch (char) {
             .newline => {
-                input.finalize();
+                input.finalize(io);
                 return true;
             },
             .backspace => {

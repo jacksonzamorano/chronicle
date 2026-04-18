@@ -9,7 +9,7 @@ pub const Pass = struct {
 
     pub fn init(allocator: std.mem.Allocator) Pass {
         return .{
-            .output = .{},
+            .output = .empty,
             .allocator = allocator,
         };
     }
@@ -28,26 +28,19 @@ pub const Pass = struct {
         pass.output.appendSlice(pass.allocator, bytes) catch unreachable;
     }
 
-    pub fn flush(pass: *Pass, time: i128) void {
-        const stdout = std.fs.File.stdout();
+    pub fn flush(pass: *Pass, io: std.Io) void {
+        const stdout = std.Io.File.stdout();
         var escape: [24]u8 = undefined;
         if (pass.prevLines > 0) {
             const seq = std.fmt.bufPrint(&escape, "\x1b[{d}F\x1b[0J", .{pass.prevLines}) catch unreachable;
-            stdout.writeAll(seq) catch unreachable;
+            stdout.writeStreamingAll(io, seq) catch unreachable;
         } else {
             const seq = std.fmt.bufPrint(&escape, "\x1B[2K\r", .{}) catch unreachable;
-            stdout.writeAll(seq) catch unreachable;
+            stdout.writeStreamingAll(io, seq) catch unreachable;
         }
-        stdout.writeAll(pass.output.items) catch unreachable;
+        stdout.writeStreamingAll(io, pass.output.items) catch unreachable;
         pass.output.clearRetainingCapacity();
         pass.prevLines = pass.currentLines;
         pass.currentLines = 0;
-        if (time > 0) {
-            pass.prevLines += 1;
-            var buf: [32]u8 = undefined;
-            const elapsed_ms = @as(f64, @floatFromInt(std.time.nanoTimestamp() - time)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
-            const s = std.fmt.bufPrint(&buf, "\n{s}render: {d:.2} ms{s}", .{ constants.COLOR_DIM, elapsed_ms, constants.COLOR_RESET }) catch unreachable;
-            stdout.writeAll(s) catch unreachable;
-        }
     }
 };

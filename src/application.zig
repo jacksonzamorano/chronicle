@@ -1,69 +1,60 @@
 const Keybind = struct {
     key: u8,
-    action: *const fn (*Application) void,
+    action: *const fn (*Application, std.Io) void,
 };
 pub const Application = struct {
     lines: std.ArrayList(StateLine),
     currentFocus: ?StateLine = undefined,
     keybinds: std.ArrayList(Keybind),
     pass: Pass,
-    input: InputMonitor,
+    input: Keyboard,
 
-    lock: std.Thread.Mutex,
+    lock: std.Io.Mutex,
     allocator: std.mem.Allocator,
 
     tick_time: u64 = 16,
     default_indeterminate: InProgressSpinner = .dots,
     debug: bool = false,
 
-    cleanup: std.atomic.Value(bool),
-    thread: ?std.Thread = null,
     og_mode: ?posix.termios = null,
+    task: ?std.Io.Future(void) = null,
 
     pub fn init(allocator: std.mem.Allocator) Application {
-        const input = InputMonitor.init();
         return .{
-            .lines = .{},
+            .lines = .empty,
             .pass = Pass.init(allocator),
-            .keybinds = .{},
-            .lock = .{},
+            .keybinds = .empty,
+            .lock = .init,
             .allocator = allocator,
-            .cleanup = std.atomic.Value(bool).init(false),
-            .input = input,
+            .input = .init,
         };
     }
 
     fn renderAll(state: *Application) void {
-        for (state.lines.items) |line| {
-            switch (line) {
-                inline else => |l| {
-                    if (@hasDecl(@TypeOf(l.*), "render")) {
-                        l.render(&state.pass);
-                    }
-                },
-            }
+        for (state.lines.items) |*line| {
+            line.render(&state.pass);
         }
     }
 
-    pub fn focusInput(state: *Application, input: *Input) void {
-        state.lock.lock();
-        defer state.lock.unlock();
+    pub fn focusInput(state: *Application, io: std.Io, input: *Input) void {
+        state.lock.lock(io) catch return;
+        defer state.lock.unlock(io);
         state.currentFocus = .{ .input = input };
     }
 
-    fn loop(state: *Application) void {
-        state.input.start();
+    fn loop(state: *Application, io: std.Io) void {
         var inputBuf: [constants.INPUT_BUFFER_SIZE]InputEvent = undefined;
         var inputBufIdx: usize = 0;
-        while (!state.cleanup.load(.acquire)) : (inputBufIdx = 0) {
-            const inputCount = state.input.read(&inputBuf);
+        while (true) : (inputBufIdx = 0) {
+            io.checkCancel() catch break;
+            const inputCount = state.input.read(io, &inputBuf);
             input_loop: while (inputBufIdx < inputCount) {
                 const input = inputBuf[inputBufIdx];
                 switch (input) {
                     .ctrl_key => |c| {
                         for (state.keybinds.items) |keybind| {
                             if (keybind.key == c) {
-                                keybind.action(state);
+                                keybind.action(state, io);
                                 inputBufIdx += 1;
                                 continue :input_loop;
                             }
@@ -79,7 +70,7 @@ pub const Application = struct {
                     switch (focus) {
                         inline else => |f| {
                             if (@hasDecl(@TypeOf(f.*), "onInput")) {
-                                const done = f.onInput(inputBuf[inputBufIdx]);
+                                const done = f.onInput(io, inputBuf[inputBufIdx]);
                                 if (done) {
                                     state.currentFocus = null;
                                     break;
@@ -90,27 +81,29 @@ pub const Application = struct {
                     }
                 }
             }
-            state.lock.lock();
-            const tick = std.time.nanoTimestamp();
+            state.lock.lock(io) catch return;
             state.renderAll();
-            state.pass.flush(if (state.debug) tick else 0);
-            state.lock.unlock();
-            std.Thread.sleep(state.tick_time * std.time.ns_per_ms);
+            state.pass.flush(io);
+            state.lock.unlock(io);
+            io.sleep(.fromMilliseconds(16), .real) catch break;
         }
 
         state.renderAll();
-        state.pass.flush(0);
-        const stdout = std.fs.File.stdout();
-        stdout.writeAll("\n") catch unreachable;
+        state.pass.flush(io);
+        if (state.og_mode) |original| {
+            posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, original) catch unreachable;
+        }
+        const stdout = std.Io.File.stdout();
+        stdout.writeStreamingAll(io, "\n") catch unreachable;
     }
 
-    fn addLine(state: *Application, line: StateLine) void {
-        state.lock.lock();
-        defer state.lock.unlock();
+    fn addLine(state: *Application, io: std.Io, line: StateLine) void {
+        state.lock.lock(io) catch return;
+        defer state.lock.unlock(io);
         state.lines.append(state.allocator, line) catch unreachable;
     }
 
-    pub fn createIndeterminate(state: *Application, title: []const u8) *InProgress {
+    pub fn createIndeterminate(state: *Application, io: std.Io, title: []const u8) *InProgress {
         const loader = state.allocator.create(InProgress) catch unreachable;
         loader.* = .{
             .lock = &state.lock,
@@ -121,37 +114,37 @@ pub const Application = struct {
             .max = 0,
             .value = 0,
         };
-        state.addLine(.{ .in_progress = loader });
+        state.addLine(io, .{ .in_progress = loader });
         return loader;
     }
 
-    pub fn createText(state: *Application, t: []const u8) *Text {
+    pub fn createText(state: *Application, io: std.Io, t: []const u8) *Text {
         const text = state.allocator.create(Text) catch unreachable;
         text.* = .{
             .lock = &state.lock,
             .text = t,
             .style = .regular,
         };
-        state.addLine(.{ .text = text });
+        state.addLine(io, .{ .text = text });
         return text;
     }
 
-    pub fn createInput(state: *Application, prompt: []const u8) *Input {
+    pub fn createInput(state: *Application, io: std.Io, prompt: []const u8) *Input {
         const input = state.allocator.create(Input) catch unreachable;
         input.* = .{
             .lock = &state.lock,
             .allocator = state.allocator,
             .prompt = prompt,
             .value = undefined,
-            .temporaryValue = .{},
+            .temporaryValue = .empty,
             .validation = null,
-            .completed = .{},
+            .completed = .init,
         };
-        state.addLine(.{ .input = input });
+        state.addLine(io, .{ .input = input });
         return input;
     }
 
-    pub fn start(state: *Application) void {
+    pub fn start(state: *Application, io: std.Io) void {
         const original = posix.tcgetattr(posix.STDIN_FILENO) catch unreachable;
         var raw = original;
 
@@ -172,19 +165,24 @@ pub const Application = struct {
         raw.cc[@intFromEnum(posix.V.TIME)] = 0;
 
         posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, raw) catch unreachable;
-        state.thread = std.Thread.spawn(.{}, loop, .{state}) catch unreachable;
+
+        state.input.start(io) catch unreachable;
         state.og_mode = original;
-    }
+        if (io.concurrent(loop, .{ state, io })) |t| {
+            state.task = t;
+        } else |_| {
+            state.stop(io);
 
-    pub fn stop(state: *Application) void {
-        if (state.og_mode) |original| {
-            posix.tcsetattr(posix.STDIN_FILENO, .FLUSH, original) catch unreachable;
+            const stdout = std.Io.File.stdout();
+            stdout.writeStreamingAll(io, "Loop crashed.") catch unreachable;
         }
-        state.cleanup.store(true, .release);
-        if (state.thread) |t| t.join();
     }
 
-    pub fn addKeybind(state: *Application, key: u8, action: *const fn (*Application) void) void {
+    pub fn stop(state: *Application, io: std.Io) void {
+        if (state.task) |*t| t.cancel(io);
+    }
+
+    pub fn addKeybind(state: *Application, key: u8, action: *const fn (*Application, std.Io) void) void {
         state.keybinds.append(state.allocator, .{ .key = key, .action = action }) catch unreachable;
     }
 };
@@ -198,6 +196,6 @@ const InProgress = @import("in_progress.zig").InProgress;
 const InProgressSpinner = @import("in_progress.zig").InProgressSpinner;
 const Text = @import("text.zig").Text;
 const Input = @import("input.zig").Input;
-const InputMonitor = @import("input_monitor.zig").InputMonitor;
+const Keyboard = @import("input_monitor.zig").Keyboard;
 const InputEvent = @import("input_monitor.zig").InputEvent;
 const constants = @import("ansi.zig");

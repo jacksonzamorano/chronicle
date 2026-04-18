@@ -2,27 +2,22 @@ const std = @import("std");
 const posix = std.posix;
 const constants = @import("ansi.zig");
 
-pub const InputMonitor = struct {
+pub const Keyboard = struct {
     buf: [constants.INPUT_BUFFER_SIZE]InputEvent = undefined,
-    mutex: std.Thread.Mutex = .{},
+    mutex: std.Io.Mutex = .init,
 
     head: std.atomic.Value(usize) = std.atomic.Value(usize).init(0),
     tail: std.atomic.Value(usize) = std.atomic.Value(usize).init(0),
-    thread: ?std.Thread = null,
-    cleanup: std.atomic.Value(bool),
 
-    pub fn init() InputMonitor {
-        return .{
-            .cleanup = std.atomic.Value(bool).init(false),
-        };
-    }
+    pub const init: Keyboard = .{};
 
-    fn loop(monitor: *InputMonitor) void {
+    fn loop(monitor: *Keyboard, io: std.Io) void {
         var read_buf: [1]u8 = undefined;
-        while (!monitor.cleanup.load(.acquire)) {
+        while (true) {
+            io.checkCancel() catch break;
             _ = posix.read(posix.STDIN_FILENO, &read_buf) catch unreachable;
-            monitor.mutex.lock();
-            defer monitor.mutex.unlock();
+            monitor.mutex.lock(io) catch unreachable;
+            defer monitor.mutex.unlock(io);
 
             const cTail = monitor.tail.load(.acquire);
             const cHead = monitor.head.load(.acquire);
@@ -39,9 +34,9 @@ pub const InputMonitor = struct {
         }
     }
 
-    pub fn read(monitor: *InputMonitor, buf: *[constants.INPUT_BUFFER_SIZE]InputEvent) usize {
-        monitor.mutex.lock();
-        defer monitor.mutex.unlock();
+    pub fn read(monitor: *Keyboard, io: std.Io, buf: *[constants.INPUT_BUFFER_SIZE]InputEvent) usize {
+        monitor.mutex.lock(io) catch return 0;
+        defer monitor.mutex.unlock(io);
         var cHead = monitor.head.load(.acquire);
         const cTail = monitor.tail.load(.acquire);
 
@@ -56,8 +51,8 @@ pub const InputMonitor = struct {
         return idx;
     }
 
-    pub fn start(monitor: *InputMonitor) void {
-        monitor.thread = std.Thread.spawn(.{}, loop, .{monitor}) catch unreachable;
+    pub fn start(monitor: *Keyboard, io: std.Io) !void {
+        _ = try io.concurrent(Keyboard.loop, .{ monitor, io });
     }
 };
 
